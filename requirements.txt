@@ -1,0 +1,5 @@
+pyannote.audio
+speechbrain
+torchaudio
+soundfile
+huggingface_hub
