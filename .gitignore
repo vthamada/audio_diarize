@@ -19,7 +19,6 @@ venv/
 # Audio outputs and large media
 podcast_completo*.wav
 podcast_completo*.WAV
-speakers.txt
 jarvis_dublador_raw.wav
 
 # OS
