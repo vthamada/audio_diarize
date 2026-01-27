@@ -25,3 +25,5 @@ jarvis_dublador_raw.wav
 # OS
 .DS_Store
 Thumbs.db
+
+.env

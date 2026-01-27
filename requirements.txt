@@ -3,3 +3,5 @@ speechbrain
 torchaudio
 soundfile
 huggingface_hub
+python-dotenv
+omegaconf

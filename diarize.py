@@ -1,12 +1,82 @@
 from __future__ import annotations
 
 import collections
+import glob
 import os
+import shutil
 import subprocess
 import sys
+import threading
+import time
 from typing import Any
+try:
+    from dotenv import load_dotenv
+except Exception:
+    def load_dotenv(path: str = ".env", **_kwargs):
+        if not os.path.exists(path):
+            return False
+        try:
+            with open(path, "r", encoding="utf-8-sig") as f:
+                for raw in f:
+                    line = raw.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, value = line.split("=", 1)
+                    key = key.strip()
+                    value = value.strip().strip("'").strip('"')
+                    if key and key not in os.environ:
+                        os.environ[key] = value
+            return True
+        except Exception:
+            return False
 
-from pyannote.audio import Pipeline
+
+def _is_writable_dir(path: str) -> bool:
+    try:
+        os.makedirs(path, exist_ok=True)
+        probe = os.path.join(path, ".tmp_write_test")
+        with open(probe, "w", encoding="utf-8") as f:
+            f.write("ok")
+        os.remove(probe)
+        return True
+    except Exception:
+        return False
+
+
+def _ensure_temp_dir() -> None:
+    # Ensure a writable temp folder before importing heavy libs (lightning/torchmetrics).
+    candidates: list[str] = []
+    for key in ("TEMP", "TMP", "TMPDIR"):
+        value = os.environ.get(key)
+        if value:
+            candidates.append(value)
+
+    local_app = os.environ.get("LOCALAPPDATA")
+    if local_app:
+        candidates.append(os.path.join(local_app, "Temp"))
+
+    user_profile = os.environ.get("USERPROFILE")
+    if user_profile:
+        candidates.append(os.path.join(user_profile, "Temp"))
+
+    candidates.extend(
+        [
+            os.path.join(os.getcwd(), "tmp"),
+            r"C:\Temp",
+            r"C:\Windows\Temp",
+        ]
+    )
+
+    for candidate in candidates:
+        if _is_writable_dir(candidate):
+            os.environ["TEMP"] = candidate
+            os.environ["TMP"] = candidate
+            return
+
+
+_ENV_PATH = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(_ENV_PATH)
+_ensure_temp_dir()
 
 # -------------------------
 # Config
@@ -17,7 +87,7 @@ if not HF_TOKEN:
     sys.exit(1)
 
 CACHE_DIR = os.path.join(os.getcwd(), ".cache")
-ORIGINAL_AUDIO_FILE = "podcast_completo.wav"
+ORIGINAL_AUDIO_FILE = "podcast_completo.WAV"
 DIARIZE_AUDIO_FILE = "podcast_completo_16k_mono.wav"
 DIARIZE_SAMPLE_RATE = 16000
 DIARIZE_FORCE_CONVERT = False
@@ -34,6 +104,10 @@ try:
     DIARIZE_TEST_SECONDS = int(os.environ.get("DIARIZE_TEST_SECONDS", "0"))
 except Exception:
     DIARIZE_TEST_SECONDS = 0
+try:
+    DIARIZE_LOG_EVERY = int(os.environ.get("DIARIZE_LOG_EVERY", "60"))
+except Exception:
+    DIARIZE_LOG_EVERY = 60
 
 os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -186,11 +260,33 @@ def _patch_speechbrain() -> None:
     EncoderClassifier.from_hparams = patched
 
 
+def _patch_pyannote_revision() -> None:
+    try:
+        from pyannote.audio.core.model import Model
+    except Exception:
+        return
+
+    orig = Model.from_pretrained
+
+    def patched(checkpoint, *args, **kwargs):
+        if (
+            isinstance(checkpoint, str)
+            and "@" in checkpoint
+            and "revision" not in kwargs
+        ):
+            checkpoint, revision = checkpoint.split("@", 1)
+            kwargs["revision"] = revision
+        return orig(checkpoint, *args, **kwargs)
+
+    Model.from_pretrained = patched
+
+
 def _apply_patches() -> None:
     _patch_hf_hub_download()
     _patch_torch_serialization()
     _patch_torchaudio()
     _patch_speechbrain()
+    _patch_pyannote_revision()
 
 
 def _select_device():
@@ -223,14 +319,62 @@ def _apply_batch_sizes(pipeline) -> None:
 # Audio helpers
 # -------------------------
 
+def _resolve_ffmpeg() -> str:
+    exe = shutil.which("ffmpeg")
+    if exe:
+        return exe
+    local_app = os.environ.get("LOCALAPPDATA")
+    if local_app:
+        pattern = os.path.join(
+            local_app,
+            "Microsoft",
+            "WinGet",
+            "Packages",
+            "Gyan.FFmpeg_*",
+            "ffmpeg-*",
+            "bin",
+            "ffmpeg.exe",
+        )
+        matches = sorted(glob.glob(pattern))
+        if matches:
+            return matches[-1]
+    return "ffmpeg"
+
+
+def _log(msg: str) -> None:
+    ts = time.strftime("%H:%M:%S")
+    print(f"[{ts}] {msg}")
+
+
+def _start_heartbeat(label: str, every_seconds: int):
+    if every_seconds <= 0:
+        return None, None
+    stop_event = threading.Event()
+
+    def run():
+        start = time.monotonic()
+        while not stop_event.wait(every_seconds):
+            elapsed = int(time.monotonic() - start)
+            _log(f"{label}... {elapsed}s")
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    return stop_event, thread
+
+
 def _ensure_diarization_audio() -> str:
     if os.path.exists(DIARIZE_AUDIO_FILE) and not DIARIZE_FORCE_CONVERT:
         return DIARIZE_AUDIO_FILE
     if not os.path.exists(ORIGINAL_AUDIO_FILE):
         raise FileNotFoundError(f"Arquivo de audio nao encontrado: {ORIGINAL_AUDIO_FILE}")
-    print("Gerando audio para diarizacao (16k mono)...")
+    _log("Gerando audio para diarizacao (16k mono)...")
+    ffmpeg_exe = _resolve_ffmpeg()
+    if ffmpeg_exe == "ffmpeg" and not shutil.which("ffmpeg"):
+        raise FileNotFoundError(
+            "ffmpeg nao encontrado no PATH. Instale o FFmpeg ou reinicie o terminal."
+        )
     cmd = [
-        "ffmpeg",
+        ffmpeg_exe,
         "-hide_banner",
         "-y",
         "-i",
@@ -261,7 +405,8 @@ def _load_audio_for_pipeline(path: str, max_seconds: int = 0) -> dict[str, Any]:
         waveform = torch.from_numpy(data.T)
         if waveform.shape[0] > 1:
             waveform = waveform.mean(dim=0, keepdim=True)
-        return {"waveform": waveform, "sample_rate": sample_rate}
+        duration = waveform.shape[-1] / float(sample_rate)
+        return {"waveform": waveform, "sample_rate": sample_rate, "duration": duration}
     except Exception:
         pass
 
@@ -275,7 +420,8 @@ def _load_audio_for_pipeline(path: str, max_seconds: int = 0) -> dict[str, Any]:
             waveform = waveform.unsqueeze(0)
         elif waveform.shape[0] > 1:
             waveform = waveform.mean(dim=0, keepdim=True)
-        return {"waveform": waveform, "sample_rate": sample_rate}
+        duration = waveform.shape[-1] / float(sample_rate)
+        return {"waveform": waveform, "sample_rate": sample_rate, "duration": duration}
     except Exception as e:
         raise RuntimeError(
             "Audio loading failed with soundfile and torchaudio. "
@@ -286,44 +432,65 @@ def _load_audio_for_pipeline(path: str, max_seconds: int = 0) -> dict[str, Any]:
 def main() -> None:
     _apply_patches()
 
-    diarize_audio_path = _ensure_diarization_audio()
-    print(f"Usando audio para diarizacao: {diarize_audio_path}")
-    if DIARIZE_TEST_SECONDS:
-        print(f"Test mode: {DIARIZE_TEST_SECONDS}s")
+    from pyannote.audio import Pipeline
 
+    _log(f"Arquivo original: {ORIGINAL_AUDIO_FILE}")
+    diarize_audio_path = _ensure_diarization_audio()
+    _log(f"Usando audio para diarizacao: {diarize_audio_path}")
+    if DIARIZE_TEST_SECONDS:
+        _log(f"Test mode: {DIARIZE_TEST_SECONDS}s")
+
+    _log("Carregando pipeline...")
     pipeline = Pipeline.from_pretrained(
         "pyannote/speaker-diarization",
         token=HF_TOKEN,
         cache_dir=CACHE_DIR,
     )
     _apply_batch_sizes(pipeline)
+    _log(
+        f"Batch sizes: segmentation={SEGMENTATION_BATCH_SIZE}, embedding={EMBEDDING_BATCH_SIZE}"
+    )
 
     device = _select_device()
     if device is not None:
         try:
             pipeline.to(device)
-            print(f"Usando device: {device}")
+            _log(f"Usando device: {device}")
         except Exception:
             pass
 
+    _log("Carregando audio para pipeline...")
     audio = _load_audio_for_pipeline(
         diarize_audio_path, max_seconds=DIARIZE_TEST_SECONDS
     )
+    if "duration" in audio:
+        _log(f"Duracao carregada: {audio['duration']:.1f}s")
     if device is not None and "waveform" in audio:
         try:
             audio["waveform"] = audio["waveform"].to(device)
         except Exception:
             pass
-    diarization = pipeline(audio)
+    _log("Iniciando diarizacao...")
+    stop_event, thread = _start_heartbeat("Diarizacao em andamento", DIARIZE_LOG_EVERY)
+    t0 = time.monotonic()
+    try:
+        diarization = pipeline(audio)
+    finally:
+        if stop_event is not None:
+            stop_event.set()
+        if thread is not None:
+            thread.join(timeout=1)
+    _log(f"Diarizacao concluida em {time.monotonic() - t0:.1f}s")
 
     annotation = getattr(diarization, "speaker_diarization", diarization)
+    _log("Escrevendo speakers.txt...")
     with open("speakers.txt", "w", encoding="utf-8") as f:
         for turn, _, speaker in annotation.itertracks(yield_label=True):
             line = f"{turn.start:.2f} --> {turn.end:.2f} | {speaker}"
             print(line)
             f.write(line + "\n")
 
-    print("OK. Diarizacao concluida. Arquivo gerado: speakers.txt")
+    _log("OK. Diarizacao concluida. Arquivo gerado: speakers.txt")
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ from typing import Iterable, Tuple
 # Config
 # -------------------------
 SPEAKERS_FILE = "speakers.txt"
-ORIGINAL_AUDIO_FILE = "podcast_completo.wav"
+ORIGINAL_AUDIO_FILE = "podcast_completo.WAV"
 TARGET_SPEAKER = "SPEAKER_00"  # ajuste aqui
 MIN_SEGMENT_MS = 300
 ADD_SILENCE_MS = 0  # 0 = sem silencia extra entre trechos
