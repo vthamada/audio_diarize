@@ -20,6 +20,12 @@ venv/
 podcast_completo*.wav
 podcast_completo*.WAV
 jarvis_dublador_raw.wav
+jarvis_dublador_clean.wav
+segments/
+samples/
+ref_speaker/
+segments_similarity.csv
+overlaps.txt
 
 # OS
 .DS_Store
