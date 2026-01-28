@@ -32,3 +32,6 @@ overlaps.txt
 Thumbs.db
 
 .env
+voiceprints.json
+identify_output.json
+pyannote_media.json

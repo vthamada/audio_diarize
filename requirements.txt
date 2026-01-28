@@ -5,3 +5,4 @@ soundfile
 huggingface_hub
 python-dotenv
 omegaconf
+requests

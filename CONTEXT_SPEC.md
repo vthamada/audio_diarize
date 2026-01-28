@@ -134,3 +134,42 @@ Updated:
 - `.gitignore`
 
 Large outputs (`segments/`, `samples/`, `ref_speaker/`, WAVs) are gitignored.
+
+### `identify_precision2.py`
+Uses pyannoteAI Precision-2 API with voiceprints for highest-precision diarization.
+- Uploads main audio and reference WAVs from `ref_speaker/`.
+- Builds/loads voiceprints and runs `/identify` with `exclusive=true`.
+- Writes `speakers.txt` and saves raw output to `identify_output.json`.
+- Requires `PYANNOTE_API_KEY` in environment.
+
+Recommended API flow (best quality):
+1) Ensure clean refs in `ref_speaker/` (3-5 WAVs, 5-15s each).
+2) Run:
+   - `\venv\Scripts\python.exe .\identify_precision2.py`
+3) Continue with overlap detection and extraction if needed.
+
+## Latest updates (2026-01-28)
+- Added `identify_precision2.py` to use pyannoteAI Precision-2 with voiceprints.
+- Added `requests` dependency and gitignored API artifacts (`voiceprints.json`, `identify_output.json`, `pyannote_media.json`).
+- Voiceprints workflow in use; user kept **3 clean refs** in `ref_speaker/`.
+- `PYANNOTE_API_KEY` set in `.env` (do not commit).
+
+## Precision-2 voiceprints workflow (recommended)
+1) Ensure clean refs in `ref_speaker/` (3-5 WAVs, 5-15s each).
+2) Run identify from terminal:
+   - `$env:PYANNOTE_API_KEY="<your_key>"`
+   - `\venv\Scripts\python.exe .\identify_precision2.py`
+3) `speakers.txt` is generated from Precision-2 exclusive diarization.
+4) (Optional) run overlap detection for extra safety:
+   - `\venv\Scripts\python.exe .\detect_overlap.py`
+5) Extract segments:
+   - `\venv\Scripts\python.exe .\extract_dublador.py`
+6) Review and approve:
+   - `segments/review_list.csv` (set `approved=1` only for clean segments)
+7) Concatenate approved:
+   - `\venv\Scripts\python.exe .\concat_approved.py`
+
+## Next steps / planned improvements
+- Add env config for `MATCHING_THRESHOLD`, `EXCLUSIVE`, `MIN/MAX_SPEAKERS` in `identify_precision2.py`.
+- Consider raising `OVERLAP_DILATION_SECONDS` (0.4–0.6) for stricter overlap removal.
+- Optional: add energy/RMS filter before similarity to drop weak/noisy segments.
