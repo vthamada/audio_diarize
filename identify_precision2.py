@@ -111,6 +111,35 @@ def _make_object_key(prefix: str, path: str) -> str:
     return f"{prefix}/{base}-{uuid.uuid4().hex}.wav"
 
 
+def _extract_segments(diar: Any) -> list[Any] | None:
+    if isinstance(diar, list):
+        return diar
+    if isinstance(diar, dict):
+        segs = diar.get("segments")
+        if isinstance(segs, list):
+            return segs
+    return None
+
+
+def _read_segment(seg: Any) -> tuple[float, float, str]:
+    if isinstance(seg, dict):
+        start = float(seg.get("start", 0.0))
+        end = float(seg.get("end", 0.0))
+        speaker = (
+            seg.get("speaker")
+            or seg.get("label")
+            or seg.get("name")
+            or "SPEAKER"
+        )
+        return start, end, str(speaker)
+    if isinstance(seg, (list, tuple)) and len(seg) >= 2:
+        start = float(seg[0])
+        end = float(seg[1])
+        speaker = str(seg[2]) if len(seg) >= 3 else "SPEAKER"
+        return start, end, speaker
+    return 0.0, 0.0, "SPEAKER"
+
+
 # -------------------------
 # Main
 # -------------------------
@@ -210,16 +239,14 @@ def main() -> None:
     if diar is None:
         raise RuntimeError("No diarization found in output")
 
-    segments = diar.get("segments", diar)
-    if not isinstance(segments, list):
+    segments = _extract_segments(diar)
+    if not segments:
         raise RuntimeError("Unexpected diarization format")
 
-    segments_sorted = sorted(segments, key=lambda s: s.get("start", 0.0))
+    segments_sorted = sorted(segments, key=lambda s: _read_segment(s)[0])
     with open(OUTPUT_SPEAKERS, "w", encoding="utf-8") as f:
         for seg in segments_sorted:
-            start = float(seg.get("start", 0.0))
-            end = float(seg.get("end", 0.0))
-            speaker = seg.get("speaker", "SPEAKER")
+            start, end, speaker = _read_segment(seg)
             f.write(f"{start:.2f} --> {end:.2f} | {speaker}\n")
 
     _log(f"OK. speakers.txt gerado: {OUTPUT_SPEAKERS}")
