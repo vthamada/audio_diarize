@@ -10,7 +10,7 @@ O foco e **limpeza maxima** para clonagem de voz (TTS), mesmo que reduza a quant
 ### 1.1 Python e venv
 ```powershell
 python -m venv venv
-.env\Scripts\Activate.ps1
+.env\Scripts\Activate.ps1
 ```
 
 ### 1.2 Dependencias
@@ -33,7 +33,7 @@ PYANNOTE_API_KEY=...sua_api_key...
 Rodar em modo duplo (exclusive + non-exclusive):
 ```powershell
 $env:RUN_BOTH_EXCLUSIVE="1"
-.env\Scripts\python.exe .\identify_precision2.py
+.env\Scripts\python.exe .\identify_precision2.py
 ```
 Saidas:
 - `identify_output_non_exclusive.json`
@@ -44,7 +44,7 @@ Saidas:
 
 ### 2.2 Overlap detection
 ```powershell
-.env\Scripts\python.exe .\detect_overlap.py
+.env\Scripts\python.exe .\detect_overlap.py
 ```
 O script tenta nesta ordem:
 1) `identify_output_non_exclusive.json`
@@ -55,12 +55,12 @@ O script tenta nesta ordem:
 Opcional (forcar modelo primeiro):
 ```powershell
 $env:PREFER_OVERLAP_MODEL="1"
-.env\Scripts\python.exe .\detect_overlap.py
+.env\Scripts\python.exe .\detect_overlap.py
 ```
 
 ### 2.3 Extrair segmentos do dublador
 ```powershell
-.env\Scripts\python.exe .\extract_dublador.py
+.env\Scripts\python.exe .\extract_dublador.py
 ```
 Saidas:
 - `jarvis_dublador_raw.wav`
@@ -72,7 +72,7 @@ Abra `segments/review_list.csv` e marque `approved=1` apenas nos trechos 100% li
 
 ### 2.5 Concatenar apenas os aprovados
 ```powershell
-.env\Scripts\python.exe .\concat_approved.py
+.env\Scripts\python.exe .\concat_approved.py
 ```
 Saida:
 - `jarvis_dublador_clean.wav`
@@ -82,7 +82,7 @@ Saida:
 ## 3) Fluxo local (sem Precision-2)
 Se nao quiser usar a API:
 ```powershell
-.env\Scripts\python.exe .\diarize.py
+.env\Scripts\python.exe .\diarize.py
 ```
 Depois siga os passos a partir do overlap/extracao.
 
