@@ -8,15 +8,19 @@ from pathlib import Path
 from typing import Any
 
 import requests
+from dotenv import load_dotenv
 
 
 # -------------------------
+load_dotenv()
+
 # Config
 # -------------------------
 API_KEY = os.getenv("PYANNOTE_API_KEY", "")
 API_BASE = "https://api.pyannote.ai/v1"
 MODEL = "precision-2"
 EXCLUSIVE = True
+RUN_BOTH_EXCLUSIVE = os.getenv("RUN_BOTH_EXCLUSIVE", "0") == "1"
 MATCHING_THRESHOLD = 50  # 0-100, higher = more strict
 MIN_SPEAKERS = 0
 MAX_SPEAKERS = 0
@@ -27,7 +31,11 @@ REF_DIR = "ref_speaker"
 VOICEPRINT_CACHE = "voiceprints.json"
 MEDIA_CACHE = "pyannote_media.json"
 OUTPUT_JSON = "identify_output.json"
+OUTPUT_JSON_EXCLUSIVE = "identify_output_exclusive.json"
+OUTPUT_JSON_NON_EXCLUSIVE = "identify_output_non_exclusive.json"
 OUTPUT_SPEAKERS = "speakers.txt"
+OUTPUT_SPEAKERS_EXCLUSIVE = "speakers_exclusive.txt"
+OUTPUT_SPEAKERS_NON_EXCLUSIVE = "speakers_non_exclusive.txt"
 
 POLL_SECONDS = 5
 UPLOAD_TIMEOUT = 3600
@@ -144,6 +152,16 @@ def _read_segment(seg: Any) -> tuple[float, float, str]:
 # Main
 # -------------------------
 
+def _write_speakers(segments, path: str) -> None:
+    segments_sorted = sorted(segments, key=lambda s: _read_segment(s)[0])
+    with open(path, "w", encoding="utf-8") as f:
+        for seg in segments_sorted:
+            start, end, speaker = _read_segment(seg)
+            f.write(f"{start:.2f} --> {end:.2f} | {speaker}\n")
+
+
+
+
 def main() -> None:
     if not API_KEY:
         raise SystemExit("Erro: defina PYANNOTE_API_KEY no ambiente.")
@@ -220,6 +238,34 @@ def main() -> None:
     if MAX_SPEAKERS > 0:
         payload["maxSpeakers"] = MAX_SPEAKERS
 
+    if RUN_BOTH_EXCLUSIVE:
+        # run non-exclusive first to capture overlaps
+        _log("Iniciando identify (precision-2) - exclusive=false...")
+        payload["exclusive"] = False
+        job = _post_json(f"{API_BASE}/identify", payload)
+        job_id = job.get("jobId") or job.get("job_id")
+        if not job_id:
+            raise RuntimeError("identify did not return jobId")
+        result = _wait_job(job_id)
+        if result.get("status") != "succeeded":
+            raise RuntimeError(f"identify failed: {result}")
+        output = result.get("output", {})
+        _write_json(OUTPUT_JSON_NON_EXCLUSIVE, output)
+        diar = output.get("exclusiveDiarization") if False else output.get("diarization")
+        if diar is None:
+            diar = output.get("diarization") or output
+        segments = _extract_segments(diar)
+        if not segments:
+            raise RuntimeError("Unexpected diarization format")
+        _write_speakers(segments, OUTPUT_SPEAKERS_NON_EXCLUSIVE)
+        _log(f"OK. speakers non-exclusive: {OUTPUT_SPEAKERS_NON_EXCLUSIVE}")
+
+        # now exclusive
+        payload["exclusive"] = True
+        _log("Iniciando identify (precision-2) - exclusive=true...")
+    else:
+        pass
+
     _log("Iniciando identify (precision-2)...")
     job = _post_json(f"{API_BASE}/identify", payload)
     job_id = job.get("jobId") or job.get("job_id")
@@ -231,6 +277,8 @@ def main() -> None:
         raise RuntimeError(f"identify failed: {result}")
 
     output = result.get("output", {})
+    if RUN_BOTH_EXCLUSIVE:
+        _write_json(OUTPUT_JSON_EXCLUSIVE, output)
     _write_json(OUTPUT_JSON, output)
 
     diar = output.get("exclusiveDiarization") if EXCLUSIVE else None
@@ -243,13 +291,11 @@ def main() -> None:
     if not segments:
         raise RuntimeError("Unexpected diarization format")
 
-    segments_sorted = sorted(segments, key=lambda s: _read_segment(s)[0])
-    with open(OUTPUT_SPEAKERS, "w", encoding="utf-8") as f:
-        for seg in segments_sorted:
-            start, end, speaker = _read_segment(seg)
-            f.write(f"{start:.2f} --> {end:.2f} | {speaker}\n")
-
-    _log(f"OK. speakers.txt gerado: {OUTPUT_SPEAKERS}")
+    _write_speakers(segments, OUTPUT_SPEAKERS_EXCLUSIVE if RUN_BOTH_EXCLUSIVE else OUTPUT_SPEAKERS)
+    if RUN_BOTH_EXCLUSIVE:
+        _log(f"OK. speakers exclusive: {OUTPUT_SPEAKERS_EXCLUSIVE}")
+    else:
+        _log(f"OK. speakers.txt gerado: {OUTPUT_SPEAKERS}")
 
 
 if __name__ == "__main__":
