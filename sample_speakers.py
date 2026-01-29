@@ -6,18 +6,21 @@ from collections import defaultdict
 from typing import Iterable, Tuple
 
 
+def _default_speakers_file() -> str:
+    return "speakers_exclusive.txt" if os.path.exists("speakers_exclusive.txt") else "speakers.txt"
+
 # -------------------------
 # Config
 # -------------------------
-SPEAKERS_FILE = "speakers.txt"
+SPEAKERS_FILE = os.getenv("SAMPLE_SPEAKERS_FILE", _default_speakers_file()).strip()
 ORIGINAL_AUDIO_FILE = "podcast_completo.WAV"
 OUTPUT_DIR = "samples"
-TARGET_SPEAKER = "SPEAKER_02"  # foco no dublador
-SAMPLES_PER_SPEAKER = 3
-SAMPLE_SECONDS = 4.0
-MIN_SEGMENT_SECONDS = 20.0
-EDGE_TRIM_SECONDS = 1.0
-STRICT_EXTRA_SECONDS = 4.0
+TARGET_SPEAKER = os.getenv("SAMPLE_TARGET_SPEAKER", "").strip()
+SAMPLES_PER_SPEAKER = int(os.getenv("SAMPLE_SAMPLES_PER_SPEAKER", "3"))
+SAMPLE_SECONDS = float(os.getenv("SAMPLE_SECONDS", "4.0"))
+MIN_SEGMENT_SECONDS = float(os.getenv("SAMPLE_MIN_SEGMENT_SECONDS", "20.0"))
+EDGE_TRIM_SECONDS = float(os.getenv("SAMPLE_EDGE_TRIM_SECONDS", "1.0"))
+STRICT_EXTRA_SECONDS = float(os.getenv("SAMPLE_STRICT_EXTRA_SECONDS", "4.0"))
 
 
 def _parse_speakers(path: str) -> Iterable[Tuple[float, float, str]]:

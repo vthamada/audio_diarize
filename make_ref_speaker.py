@@ -8,15 +8,19 @@ from typing import Iterable, Tuple
 # -------------------------
 # Config (modo ultra conservador)
 # -------------------------
-SPEAKERS_FILE = "speakers.txt"
+SPEAKERS_FILE = os.getenv("REF_SPEAKERS_FILE", "speakers.txt").strip()
 ORIGINAL_AUDIO_FILE = "podcast_completo.WAV"
-TARGET_SPEAKER = "SPEAKER_02"
+TARGET_SPEAKER = os.getenv("REF_TARGET_SPEAKER", "SPEAKER_01").strip()
 OUTPUT_DIR = "ref_speaker"
-MAX_REFERENCES = 6
-REF_SECONDS = 5.0
-MIN_SEGMENT_SECONDS = 40.0
-EDGE_TRIM_SECONDS = 2.0
-STRICT_EXTRA_SECONDS = 6.0
+MAX_REFERENCES = int(os.getenv("REF_MAX_REFERENCES", "10"))
+REF_SECONDS = float(os.getenv("REF_SECONDS", "5.0"))
+MIN_SEGMENT_SECONDS = float(os.getenv("REF_MIN_SEGMENT_SECONDS", "40.0"))
+EDGE_TRIM_SECONDS = float(os.getenv("REF_EDGE_TRIM_SECONDS", "2.0"))
+STRICT_EXTRA_SECONDS = float(os.getenv("REF_STRICT_EXTRA_SECONDS", "6.0"))
+OVERLAP_FILE = os.getenv("REF_OVERLAP_FILE", "overlaps.txt")
+OVERLAP_MAX_RATIO = float(os.getenv("REF_OVERLAP_MAX_RATIO", "0.0"))
+MIN_SPEECH_RATIO = float(os.getenv("REF_MIN_SPEECH_RATIO", "0.0"))
+SPEECH_THRESHOLD_DB = float(os.getenv("REF_SPEECH_THRESHOLD_DB", "-40.0"))
 
 
 def _parse_speakers(path: str) -> Iterable[Tuple[float, float, str]]:
@@ -42,6 +46,47 @@ def _ensure_dir(path: str) -> None:
         os.makedirs(path, exist_ok=True)
 
 
+def _load_overlaps(path: str) -> list[Tuple[float, float]]:
+    if not path or not os.path.exists(path):
+        return []
+    overlaps: list[Tuple[float, float]] = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.replace(",", " ").split()
+            if len(parts) < 2:
+                continue
+            try:
+                start = float(parts[0])
+                end = float(parts[1])
+            except Exception:
+                continue
+            if end > start:
+                overlaps.append((start, end))
+    overlaps.sort(key=lambda x: x[0])
+    return overlaps
+
+
+def _overlap_ratio(
+    seg_start: float, seg_end: float, overlaps: list[Tuple[float, float]]
+) -> float:
+    if seg_end <= seg_start or not overlaps:
+        return 0.0
+    total = 0.0
+    for ov_start, ov_end in overlaps:
+        if ov_end <= seg_start:
+            continue
+        if ov_start >= seg_end:
+            break
+        inter_start = max(seg_start, ov_start)
+        inter_end = min(seg_end, ov_end)
+        if inter_end > inter_start:
+            total += inter_end - inter_start
+    return total / (seg_end - seg_start)
+
+
 def main() -> None:
     if not os.path.exists(SPEAKERS_FILE):
         print(f"Erro: arquivo nao encontrado: {SPEAKERS_FILE}")
@@ -55,6 +100,7 @@ def main() -> None:
 
     try:
         import soundfile as sf
+        import numpy as np
     except Exception:
         print("Erro: soundfile nao instalado. Rode: pip install soundfile")
         sys.exit(1)
@@ -64,6 +110,8 @@ def main() -> None:
         REF_SECONDS + (2.0 * EDGE_TRIM_SECONDS) + STRICT_EXTRA_SECONDS,
     )
 
+    overlaps = _load_overlaps(OVERLAP_FILE)
+
     segments = []
     for start, end, spk in _parse_speakers(SPEAKERS_FILE):
         if spk != TARGET_SPEAKER:
@@ -72,6 +120,10 @@ def main() -> None:
             continue
         if (end - start) < min_required:
             continue
+        if overlaps:
+            ratio = _overlap_ratio(start, end, overlaps)
+            if ratio > OVERLAP_MAX_RATIO:
+                continue
         segments.append((start, end))
 
     if not segments:
@@ -118,6 +170,12 @@ def main() -> None:
                 data = src.read(ref_end - ref_start, dtype="float32", always_2d=True)
                 if data.size == 0:
                     continue
+                if MIN_SPEECH_RATIO > 0.0:
+                    mono = data.mean(axis=1)
+                    thresh = 10 ** (SPEECH_THRESHOLD_DB / 20.0)
+                    speech_ratio = float((abs(mono) >= thresh).mean())
+                    if speech_ratio < MIN_SPEECH_RATIO:
+                        continue
 
                 start_ms = int((ref_start / sr) * 1000)
                 end_ms = int((ref_end / sr) * 1000)

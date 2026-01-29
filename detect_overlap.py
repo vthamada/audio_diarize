@@ -4,6 +4,7 @@ import os
 import sys
 
 from dotenv import load_dotenv
+from pathlib import Path
 from typing import Iterable, Tuple
 
 
@@ -30,8 +31,8 @@ SPEAKERS_FILE = "speakers.txt"
 OVERLAP_MODEL = "pyannote/overlapped-speech-detection"
 IDENTIFY_JSON = "identify_output.json"
 IDENTIFY_JSON_NON_EXCLUSIVE = "identify_output_non_exclusive.json"
-OVERLAP_DILATION_SECONDS = 0.2
-MIN_OVERLAP_SECONDS = 0.1
+OVERLAP_DILATION_SECONDS = 0.5
+MIN_OVERLAP_SECONDS = 0.2
 FALLBACK_TO_SPEAKERS = True
 PREFER_OVERLAP_MODEL = os.getenv("PREFER_OVERLAP_MODEL", "0") == "1"
 REQUIRE_OVERLAP_MODEL = os.getenv("REQUIRE_OVERLAP_MODEL", "0") == "1"
@@ -96,8 +97,6 @@ def _load_identify_segments(path: str):
 def _dilate(seg: Tuple[float, float], delta: float) -> Tuple[float, float]:
     start, end = seg
     return max(0.0, start - delta), end + delta
-
-
 
 
 def _overlaps_from_speakers(segments):

@@ -25,6 +25,11 @@ MATCHING_THRESHOLD = 50  # 0-100, higher = more strict
 MIN_SPEAKERS = 0
 MAX_SPEAKERS = 0
 NUM_SPEAKERS = 0
+VOICEPRINT_MAX_REFS = int(os.getenv("VOICEPRINT_MAX_REFS", "0"))  # 0 = no limit
+VOICEPRINT_MIN_REQUIRED = int(os.getenv("VOICEPRINT_MIN_REQUIRED", "1"))
+VOICEPRINT_SKIP_ERRORS = os.getenv("VOICEPRINT_SKIP_ERRORS", "1") == "1"
+VOICEPRINT_RANK_BY_SPEECH = os.getenv("VOICEPRINT_RANK_BY_SPEECH", "1") == "1"
+VOICEPRINT_SPEECH_DB = float(os.getenv("VOICEPRINT_SPEECH_DB", "-40.0"))
 
 MAIN_AUDIO_FILE = "podcast_completo.WAV"
 REF_DIR = "ref_speaker"
@@ -147,6 +152,32 @@ def _read_segment(seg: Any) -> tuple[float, float, str]:
         return start, end, speaker
     return 0.0, 0.0, "SPEAKER"
 
+def _rank_refs_by_speech(ref_files: list[str]) -> list[str]:
+    try:
+        import soundfile as sf
+        import numpy as np
+    except Exception:
+        return ref_files
+
+    ranked: list[tuple[float, str]] = []
+    thresh = 10 ** (VOICEPRINT_SPEECH_DB / 20.0)
+    for path in ref_files:
+        try:
+            data, _sr = sf.read(path, dtype="float32", always_2d=True)
+            if data.size == 0:
+                ranked.append((0.0, path))
+                continue
+            mono = data.mean(axis=1)
+            speech_ratio = float((np.abs(mono) >= thresh).mean())
+            ranked.append((speech_ratio, path))
+        except Exception:
+            ranked.append((0.0, path))
+
+    ranked.sort(key=lambda x: x[0], reverse=True)
+    _log("Ranking refs por densidade de fala (desc):")
+    for score, path in ranked:
+        _log(f"  {Path(path).name}: {score:.2f}")
+    return [p for _s, p in ranked]
 
 # -------------------------
 # Main
@@ -158,8 +189,6 @@ def _write_speakers(segments, path: str) -> None:
         for seg in segments_sorted:
             start, end, speaker = _read_segment(seg)
             f.write(f"{start:.2f} --> {end:.2f} | {speaker}\n")
-
-
 
 
 def main() -> None:
@@ -177,6 +206,14 @@ def main() -> None:
     ]
     if not ref_files:
         raise SystemExit(f"Erro: coloque WAVs limpos em {REF_DIR}")
+
+    if VOICEPRINT_RANK_BY_SPEECH:
+        ref_files = _rank_refs_by_speech(sorted(ref_files))
+    else:
+        ref_files = sorted(ref_files)
+
+    if VOICEPRINT_MAX_REFS > 0:
+        ref_files = ref_files[:VOICEPRINT_MAX_REFS]
 
     media_cache = _read_json(MEDIA_CACHE, {})
 
@@ -202,23 +239,40 @@ def main() -> None:
             continue
 
         ref_key = _make_object_key("ref", ref_path)
-        ref_media = _upload_media(ref_path, ref_key)
-        payload = {"url": ref_media, "model": MODEL}
-        job = _post_json(f"{API_BASE}/voiceprint", payload)
+        try:
+            ref_media = _upload_media(ref_path, ref_key)
+            payload = {"url": ref_media, "model": MODEL}
+            job = _post_json(f"{API_BASE}/voiceprint", payload)
+        except Exception as exc:
+            if VOICEPRINT_SKIP_ERRORS:
+                _log(f"Falha ao gerar voiceprint ({Path(ref_path).name}): {exc}")
+                continue
+            raise
         job_id = job.get("jobId") or job.get("job_id")
         if not job_id:
             raise RuntimeError("voiceprint did not return jobId")
         _log(f"Voiceprint job started: {job_id}")
         result = _wait_job(job_id)
         if result.get("status") != "succeeded":
+            if VOICEPRINT_SKIP_ERRORS:
+                _log(f"Voiceprint falhou ({Path(ref_path).name}): {result}")
+                continue
             raise RuntimeError(f"Voiceprint failed: {result}")
         output = result.get("output", {})
         voiceprint = output.get("voiceprint")
         if not voiceprint:
+            if VOICEPRINT_SKIP_ERRORS:
+                _log(f"Voiceprint vazio ({Path(ref_path).name})")
+                continue
             raise RuntimeError(f"Voiceprint missing in output: {output}")
         voiceprints.append({"label": label, "voiceprint": voiceprint})
         vp_cache[ref_path] = {"mtime": mtime, "voiceprint": voiceprint}
         _write_json(VOICEPRINT_CACHE, vp_cache)
+
+    if len(voiceprints) < VOICEPRINT_MIN_REQUIRED:
+        raise RuntimeError(
+            f"Voiceprints insuficientes: {len(voiceprints)} (min={VOICEPRINT_MIN_REQUIRED})"
+        )
 
     _log(f"Voiceprints prontos: {len(voiceprints)}")
 

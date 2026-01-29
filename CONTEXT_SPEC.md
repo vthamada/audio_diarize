@@ -37,7 +37,8 @@ We need to build a clean voice dataset for a single target speaker (Eduardo Borg
 - `PYANNOTE_API_KEY` for Precision-2 API
 
 ## Outputs
-- `speakers.txt` (speaker segments)
+- `speakers_exclusive.txt` / `speakers_non_exclusive.txt`
+- `identify_output_exclusive.json` / `identify_output_non_exclusive.json`
 - `overlaps.txt` (overlap intervals)
 - `segments/` (individual extracted clips)
 - `segments/review_list.csv` (review + approval list)
@@ -78,16 +79,18 @@ We need to build a clean voice dataset for a single target speaker (Eduardo Borg
 - `concat_approved.py`: concatenates approved clips only
 
 ## Key Configuration (current defaults)
-- Target speaker: `SPEAKER_02`
+- Target speaker: `SPEAKER_01`
 - Similarity filter:
-  - `SIMILARITY_THRESHOLD = 0.75`
+  - `SIMILARITY_THRESHOLD = 0.68`
   - `EMBED_SECONDS = 3.0`
   - `EMBED_CHUNKS = 5`
 - Segment filtering:
-  - `MIN_SEGMENT_SECONDS = 20.0`
-  - `EDGE_TRIM_SECONDS = 1.5`
+  - `MIN_SEGMENT_SECONDS = 4.0`
+  - `EDGE_TRIM_SECONDS = 0.6`
 - Overlap filtering:
-  - `OVERLAP_MAX_RATIO = 0.0`
+  - `OVERLAP_MAX_RATIO = 0.05`
+  - `OVERLAP_DILATION_SECONDS = 0.5`
+  - `MIN_OVERLAP_SECONDS = 0.2`
 
 ## Known Issues / Warnings
 - Windows Controlled Folder Access may block writes on Desktop.
@@ -99,6 +102,20 @@ We need to build a clean voice dataset for a single target speaker (Eduardo Borg
 - Use non-exclusive Precision-2 output to infer overlaps.
 - Keep strong similarity filtering and manual review for cleanliness.
 
+## Current State (2026-01-29)
+- Precision-2 dual-run completed: `speakers_exclusive.txt` / `speakers_non_exclusive.txt` generated.
+- Target speaker confirmed as `SPEAKER_01`.
+- References cleaned: 9 refs kept in `ref_speaker/` (voiceprints cached).
+- Overlaps regenerated from non-exclusive output with aggressive dilation.
+- Extraction run produced 87 segments; review list fully approved; clean concat generated (~8 min).
+
+## Next Steps (for another machine)
+1) Ensure `PYANNOTE_API_KEY` and `HF_TOKEN` are set.
+2) If needed, rerun `identify_precision2.py` (dual-run) to refresh speakers/JSONs.
+3) Run `detect_overlap.py` to regenerate `overlaps.txt`.
+4) Run `extract_dublador.py` and review `segments/review_list.csv`.
+5) Run `concat_approved.py` to generate `jarvis_dublador_clean.wav`.
+
 ## Open Questions
 - Should we add an RMS/energy filter before similarity?
 - Should we store approved segments list separate from review CSV?
@@ -106,3 +123,4 @@ We need to build a clean voice dataset for a single target speaker (Eduardo Borg
 ## Change Log
 - 2026-01-28: Added Precision-2 dual-run and overlap detection fallback chain.
 - 2026-01-28: Added review_list.csv + concat_approved workflow.
+- 2026-01-29: Target speaker updated to SPEAKER_01; overlap dilation increased; extraction thresholds relaxed; clean 8-min output generated.

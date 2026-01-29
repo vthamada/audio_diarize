@@ -8,11 +8,11 @@ from typing import Iterable, Tuple
 # -------------------------
 # Config
 # -------------------------
-SPEAKERS_FILE = "speakers.txt"
+SPEAKERS_FILE = os.getenv("EXTRACT_SPEAKERS_FILE", "speakers_exclusive.txt")
 ORIGINAL_AUDIO_FILE = "podcast_completo.WAV"
-TARGET_SPEAKER = "SPEAKER_02"  # foco no dublador
-MIN_SEGMENT_SECONDS = 20.0
-EDGE_TRIM_SECONDS = 1.5
+TARGET_SPEAKER = os.getenv("EXTRACT_TARGET_SPEAKER", "SPEAKER_01")  # foco no dublador
+MIN_SEGMENT_SECONDS = 4.0
+EDGE_TRIM_SECONDS = 0.6
 ADD_SILENCE_MS = 0  # 0 = sem silencia extra entre trechos
 OUTPUT_WAV = "jarvis_dublador_raw.wav"
 EXPORT_INDIVIDUAL = True
@@ -25,11 +25,11 @@ REFERENCE_MAX_SECONDS = 15.0
 EMBED_SAMPLE_RATE = 16000
 EMBED_SECONDS = 3.0
 EMBED_CHUNKS = 5
-SIMILARITY_THRESHOLD = 0.75
+SIMILARITY_THRESHOLD = 0.68
 SIMILARITY_CSV = "segments_similarity.csv"
 EMBED_CACHE_DIR = os.path.join(".cache", "speechbrain_spkrec")
 OVERLAP_FILE = "overlaps.txt"
-OVERLAP_MAX_RATIO = 0.0
+OVERLAP_MAX_RATIO = 0.05
 
 
 def _parse_speakers(path: str) -> Iterable[Tuple[float, float, str]]:
