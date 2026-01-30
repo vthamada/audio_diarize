@@ -7,3 +7,8 @@ python-dotenv
 omegaconf
 requests
 dotenv
+fastapi
+uvicorn
+pydantic
+faster-whisper
+openai-whisper

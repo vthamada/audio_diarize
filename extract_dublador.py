@@ -11,12 +11,12 @@ from typing import Iterable, Tuple
 SPEAKERS_FILE = os.getenv("EXTRACT_SPEAKERS_FILE", "speakers_exclusive.txt")
 ORIGINAL_AUDIO_FILE = "podcast_completo.WAV"
 TARGET_SPEAKER = os.getenv("EXTRACT_TARGET_SPEAKER", "SPEAKER_01")  # foco no dublador
-MIN_SEGMENT_SECONDS = 4.0
-EDGE_TRIM_SECONDS = 0.6
+MIN_SEGMENT_SECONDS = 2.5
+EDGE_TRIM_SECONDS = 0.5
 ADD_SILENCE_MS = 0  # 0 = sem silencia extra entre trechos
-OUTPUT_WAV = "jarvis_dublador_raw.wav"
+OUTPUT_WAV = os.getenv("EXTRACT_OUTPUT_WAV", "jarvis_dublador_raw.wav")
 EXPORT_INDIVIDUAL = True
-INDIVIDUAL_DIR = "segments"
+INDIVIDUAL_DIR = os.getenv("EXTRACT_SEGMENTS_DIR", "segments")
 INDIVIDUAL_PREFIX = "segment"
 REVIEW_CSV = os.path.join(INDIVIDUAL_DIR, "review_list.csv")
 USE_SIMILARITY_FILTER = True
@@ -25,7 +25,7 @@ REFERENCE_MAX_SECONDS = 15.0
 EMBED_SAMPLE_RATE = 16000
 EMBED_SECONDS = 3.0
 EMBED_CHUNKS = 5
-SIMILARITY_THRESHOLD = 0.68
+SIMILARITY_THRESHOLD = 0.65
 SIMILARITY_CSV = "segments_similarity.csv"
 EMBED_CACHE_DIR = os.path.join(".cache", "speechbrain_spkrec")
 OVERLAP_FILE = "overlaps.txt"

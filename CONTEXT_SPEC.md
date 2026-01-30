@@ -102,19 +102,28 @@ We need to build a clean voice dataset for a single target speaker (Eduardo Borg
 - Use non-exclusive Precision-2 output to infer overlaps.
 - Keep strong similarity filtering and manual review for cleanliness.
 
-## Current State (2026-01-29)
+## Current State (2026-01-30)
 - Precision-2 dual-run completed: `speakers_exclusive.txt` / `speakers_non_exclusive.txt` generated.
 - Target speaker confirmed as `SPEAKER_01`.
 - References cleaned: 9 refs kept in `ref_speaker/` (voiceprints cached).
 - Overlaps regenerated from non-exclusive output with aggressive dilation.
-- Extraction run produced 87 segments; review list fully approved; clean concat generated (~8 min).
+- Extraction thresholds relaxed for more minutes.
+- Approved dataset now ~18 minutes (final concat).
+- `segments_clean/` contains processed (trim + normalize) segments.
+- `jarvis_dublador_clean.wav` generated from `segments_clean` (249 clips).
+- Tools added for model setup and TTS server scaffold.
+
 
 ## Next Steps (for another machine)
-1) Ensure `PYANNOTE_API_KEY` and `HF_TOKEN` are set.
-2) If needed, rerun `identify_precision2.py` (dual-run) to refresh speakers/JSONs.
-3) Run `detect_overlap.py` to regenerate `overlaps.txt`.
-4) Run `extract_dublador.py` and review `segments/review_list.csv`.
-5) Run `concat_approved.py` to generate `jarvis_dublador_clean.wav`.
+1) Ensure `PYANNOTE_API_KEY` and `HF_TOKEN` are set in `.env`.
+2) (Optional) Re-run `identify_precision2.py` with `RUN_BOTH_EXCLUSIVE=1` to refresh JSONs.
+3) Run `detect_overlap.py` if overlaps need refresh.
+4) If new candidates are generated, use separate folder + review CSV to avoid re-reviewing old clips.
+5) Use `tools/prepare_zero_shot_refs.py` to create refs for Fish/F5.
+6) Prepare GPT-SoVITS dataset: `tools/prepare_gpt_sovits_dataset.py`.
+7) Run ASR: `tools/asr_whisper.py` (needs whisper/faster-whisper installed in venv).
+8) Start local TTS server: `tools/tts_server.py` via `uvicorn`.
+
 
 ## Open Questions
 - Should we add an RMS/energy filter before similarity?

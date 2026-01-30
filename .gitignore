@@ -22,6 +22,8 @@ podcast_completo*.WAV
 jarvis_dublador_raw.wav
 jarvis_dublador_clean.wav
 segments/
+segments_clean/
+segments_new/
 samples/
 ref_speaker/
 segments_similarity.csv
@@ -35,3 +37,10 @@ Thumbs.db
 voiceprints.json
 identify_output.json
 pyannote_media.json
+
+models/
+datasets/
+refs_zero_shot/
+tts_outputs/
+identify_output_*.json
+speakers_*
