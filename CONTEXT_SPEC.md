@@ -103,6 +103,7 @@ We need to build a clean voice dataset for a single target speaker (Eduardo Borg
 - Keep strong similarity filtering and manual review for cleanliness.
 
 ## Current State (2026-02-02)
+- Training will be done on GPU machine; WSL2 preferred for stability.
 - Precision-2 dual-run completed: `speakers_exclusive.txt` / `speakers_non_exclusive.txt` generated.
 - Target speaker confirmed as `SPEAKER_01`.
 - References cleaned: 9 refs kept in `ref_speaker/` (voiceprints cached).
@@ -117,17 +118,17 @@ We need to build a clean voice dataset for a single target speaker (Eduardo Borg
 
 ## Next Steps (for another machine)
 1) Copy `transfer_package.zip` to GPU machine and extract.
-2) Install Python 3.10/3.11, Git, FFmpeg, GPU drivers.
-3) Clone repo and install: `pip install -r requirements.txt`.
-4) Install model deps inside each repo:
+2) Prefer WSL2 (Ubuntu) for training on RTX 3050 4GB.
+3) Install Python 3.10/3.11, Git, FFmpeg, GPU drivers inside WSL2.
+4) Clone repo and install: `pip install -r requirements.txt`.
+5) Install model deps inside each repo:
    - `models/GPT-SoVITS`
    - `models/fish-speech`
    - `models/F5-TTS`
-5) Create `.env` with `HF_TOKEN` and `PYANNOTE_API_KEY`.
-6) Train GPT-SoVITS using `datasets/gpt_sovits`.
-7) Run zero-shot tests using `refs_zero_shot`.
-8) Configure `tools/tts_server.py` to point to the chosen backend.
-
+6) Create `.env` with `HF_TOKEN` and `PYANNOTE_API_KEY`.
+7) Train GPT-SoVITS using `datasets/gpt_sovits`.
+8) Run zero-shot tests using `refs_zero_shot`.
+9) Configure `tools/tts_server.py` to point to the chosen backend.
 
 ## Open Questions
 - Should we add an RMS/energy filter before similarity?
@@ -138,3 +139,4 @@ We need to build a clean voice dataset for a single target speaker (Eduardo Borg
 - 2026-01-28: Added review_list.csv + concat_approved workflow.
 - 2026-01-29: Target speaker updated to SPEAKER_01; overlap dilation increased; extraction thresholds relaxed; clean 8-min output generated.
 - 2026-02-02: Added ASR + GPT-SoVITS dataset prep; zero-shot refs; transfer bundle; TTS tooling updates.
+- 2026-02-02: Documented WSL2 training preference for GPU machine.
