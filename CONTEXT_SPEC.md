@@ -81,12 +81,12 @@ We need to build a clean voice dataset for a single target speaker (Eduardo Borg
 ## Key Configuration (current defaults)
 - Target speaker: `SPEAKER_01`
 - Similarity filter:
-  - `SIMILARITY_THRESHOLD = 0.68`
+  - `SIMILARITY_THRESHOLD = 0.65`
   - `EMBED_SECONDS = 3.0`
   - `EMBED_CHUNKS = 5`
 - Segment filtering:
-  - `MIN_SEGMENT_SECONDS = 4.0`
-  - `EDGE_TRIM_SECONDS = 0.6`
+  - `MIN_SEGMENT_SECONDS = 2.5`
+  - `EDGE_TRIM_SECONDS = 0.5`
 - Overlap filtering:
   - `OVERLAP_MAX_RATIO = 0.05`
   - `OVERLAP_DILATION_SECONDS = 0.5`
@@ -102,27 +102,31 @@ We need to build a clean voice dataset for a single target speaker (Eduardo Borg
 - Use non-exclusive Precision-2 output to infer overlaps.
 - Keep strong similarity filtering and manual review for cleanliness.
 
-## Current State (2026-01-30)
+## Current State (2026-02-02)
 - Precision-2 dual-run completed: `speakers_exclusive.txt` / `speakers_non_exclusive.txt` generated.
 - Target speaker confirmed as `SPEAKER_01`.
 - References cleaned: 9 refs kept in `ref_speaker/` (voiceprints cached).
 - Overlaps regenerated from non-exclusive output with aggressive dilation.
-- Extraction thresholds relaxed for more minutes.
-- Approved dataset now ~18 minutes (final concat).
-- `segments_clean/` contains processed (trim + normalize) segments.
-- `jarvis_dublador_clean.wav` generated from `segments_clean` (249 clips).
-- Tools added for model setup and TTS server scaffold.
-
+- Extraction thresholds tuned; manual review completed.
+- `segments_clean/` contains processed segments for final use.
+- `jarvis_dublador_clean.wav` generated from `segments_clean` (249 clips, ~18 min).
+- GPT-SoVITS dataset prepared in `datasets/gpt_sovits` (248 wavs + transcripts).
+- Zero-shot refs prepared in `refs_zero_shot/` (5 clips).
+- TTS server scaffold in `tools/tts_server.py`.
+- Transfer bundle created: `transfer_package.zip` (datasets + refs + final wav).
 
 ## Next Steps (for another machine)
-1) Ensure `PYANNOTE_API_KEY` and `HF_TOKEN` are set in `.env`.
-2) (Optional) Re-run `identify_precision2.py` with `RUN_BOTH_EXCLUSIVE=1` to refresh JSONs.
-3) Run `detect_overlap.py` if overlaps need refresh.
-4) If new candidates are generated, use separate folder + review CSV to avoid re-reviewing old clips.
-5) Use `tools/prepare_zero_shot_refs.py` to create refs for Fish/F5.
-6) Prepare GPT-SoVITS dataset: `tools/prepare_gpt_sovits_dataset.py`.
-7) Run ASR: `tools/asr_whisper.py` (needs whisper/faster-whisper installed in venv).
-8) Start local TTS server: `tools/tts_server.py` via `uvicorn`.
+1) Copy `transfer_package.zip` to GPU machine and extract.
+2) Install Python 3.10/3.11, Git, FFmpeg, GPU drivers.
+3) Clone repo and install: `pip install -r requirements.txt`.
+4) Install model deps inside each repo:
+   - `models/GPT-SoVITS`
+   - `models/fish-speech`
+   - `models/F5-TTS`
+5) Create `.env` with `HF_TOKEN` and `PYANNOTE_API_KEY`.
+6) Train GPT-SoVITS using `datasets/gpt_sovits`.
+7) Run zero-shot tests using `refs_zero_shot`.
+8) Configure `tools/tts_server.py` to point to the chosen backend.
 
 
 ## Open Questions
@@ -133,3 +137,4 @@ We need to build a clean voice dataset for a single target speaker (Eduardo Borg
 - 2026-01-28: Added Precision-2 dual-run and overlap detection fallback chain.
 - 2026-01-28: Added review_list.csv + concat_approved workflow.
 - 2026-01-29: Target speaker updated to SPEAKER_01; overlap dilation increased; extraction thresholds relaxed; clean 8-min output generated.
+- 2026-02-02: Added ASR + GPT-SoVITS dataset prep; zero-shot refs; transfer bundle; TTS tooling updates.
